@@ -1,0 +1,4 @@
+[submodule "odroid-c2/u-boot"]
+	path = odroid-c2/u-boot
+	url = https://github.com/hardkernel/u-boot.git
+	branch = odroidc2-v2015.01
