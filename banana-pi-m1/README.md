@@ -1,5 +1,5 @@
-Debian on Banana Pi M1 via debian-installer
-===========================================
+IDOBPI: Installing Debian on Banana Pi M1 via debian-installer
+==============================================================
 
 
 1.  **Download debian-installer images**
