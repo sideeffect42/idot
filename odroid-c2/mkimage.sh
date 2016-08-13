@@ -1,4 +1,4 @@
-#! /bin/bash
+#!/bin/bash
 
 # Install a bog-standard (non-mainline kernel) Debian bootable for ODROID C2.
 #
@@ -16,7 +16,7 @@
 set -e -x
 
 DEVICE=''
-SUITE=jessie
+SUITE=stable
 TYPE=sd
 MIRROR=''
 
@@ -160,7 +160,7 @@ if [ ! -d "/dev/${VGNAME}" ]; then
 fi
 
 mkfs.ext4 "/dev/${VGNAME}/root"
-mkswap "/dev/${VGNAME}/swap"
+mkswap "/dev/${VGNAME}/swap" || true
 
 
 
