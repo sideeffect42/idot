@@ -1,0 +1,4 @@
+[submodule "odroid-xu4/u-boot"]
+	path = odroid-xu4/u-boot
+	url = https://github.com/hardkernel/u-boot.git
+	branch = odroidxu3-v2012.07
