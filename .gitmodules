@@ -2,3 +2,6 @@
 	path = odroid-xu4/u-boot
 	url = https://github.com/hardkernel/u-boot.git
 	branch = odroidxu3-v2012.07
+[submodule "odroid-xu4/odroid_boot_partitions"]
+	path = odroid-xu4/odroid_boot_partitions
+	url = https://github.com/mfaessle/odroid_boot_partitions
