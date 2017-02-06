@@ -20,3 +20,19 @@ wget, zerofree.
 
 If the system used for bootstrapping is not armhf, you will additionally need
 qemu-user-static.
+
+
+# Troubleshooting
+
+### Ethernet does not work
+
+Create a file in `/etc/network/interfaces.d/eth0`.
+
+``` /etc/network/interfaces.d/eth0
+allow-hotplug eth0
+iface eth0 inet dhcp
+```
+
+If you don't want DHCP, adjust the settings accordingly.
+
+To apply the changes run `ifup eth0` or reboot.
