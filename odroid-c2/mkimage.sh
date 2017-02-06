@@ -308,6 +308,7 @@ rm -f /mnt/c2/boot/zerofill
 
 # All done, clean up.
 rm /mnt/c2/usr/bin/qemu-aarch64-static
+sleep 2
 umount -R /mnt/c2
 
 # The root file system is ext4, so we can use zerofree, which is
