@@ -130,8 +130,17 @@ if [ $(cat /sys/block/$(basename "${UBOOT_DEVICE}")/ro) -ne 1 ]; then
 	dd if='u-boot/sd_fuse/hardkernel_1mb_uboot/bl2.bin.hardkernel.1mb_uboot' \
 	   of="$UBOOT_DEVICE" seek=$((UBOOT_OFFSET + 30)) conv=sync
 
-	if [ -d '/usr/lib/u-boot/odroid-xu3' ]; then
-		UBOOT_BIN="$(which /usr/lib/u-boot/odroid-xu3/u-boot-dtb.bin /usr/lib/u-boot/odroid-xu3/u-boot.bin | head -n 1)"
+
+	UBOOT_BIN=''
+	for f in $(find './u-boot-dtb.bin' './u-boot.bin' \
+		'/usr/lib/u-boot/odroid-xu3/u-boot-dtb.bin' '/usr/lib/u-boot/odroid-xu3/u-boot.bin' 2>&-); do
+		if [ -f "$f" ]; then
+			UBOOT_BIN="$f"
+			break
+		fi
+	done
+
+	if [ -f "$UBOOT_BIN" ]; then
 		dd if="$UBOOT_BIN" of="$UBOOT_DEVICE" seek=$((UBOOT_OFFSET + 62)) conv=sync
 	else
 		echo "Cannot find odroid u-boot-dtb.bin. Install a new version of u-boot-exynos"
