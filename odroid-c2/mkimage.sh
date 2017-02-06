@@ -77,7 +77,6 @@ if [ ! -d ./c2_boot_ubuntu_release ]; then
 	cp ./c2_boot_ubuntu_release/sd_fusing.sh{,.bkp}
 	sed -i 's/^sudo eject/#sudo eject/' ./c2_boot_ubuntu_release/sd_fusing.sh
 fi
-exit 0
 
 
 
