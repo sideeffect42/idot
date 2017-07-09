@@ -5,3 +5,7 @@
 [submodule "odroid-xu4/odroid_boot_partitions"]
 	path = odroid-xu4/odroid_boot_partitions
 	url = https://github.com/mfaessle/odroid_boot_partitions
+[submodule "odroid-c2/hardkernel/u-boot"]
+	path = odroid-c2/hardkernel/u-boot
+	url = https://github.com/hardkernel/u-boot.git
+	branch = odroidc2-v2015.01
