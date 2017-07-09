@@ -13,31 +13,36 @@
 #
 # Licensed under the GNU GPL, v2 or (at your option) any later version.
 
-set -e -x
+set -e
 
+HOSTNAME='odroid'
 DEVICE=''
 SUITE='stable'
 TYPE='sd'
 MIRROR=''
+UBOOT_TYPE=$([ -f './mainline_sd_fusing.bin' ] && echo 'mainline' || echo 'hardkernel')
 
 BOOTINIPART_MB=8
 BOOTPART_MB=256
 SWAP_MB=4096
 
-HOSTNAME='odroid'
-VGNAME='odroid-vg'
 
-
-while getopts 'b:s:t:' opt; do
+while getopts 'b:h:s:t:u:' opt; do
 	case $opt in
 		b)
 			BOOTPART_MB="$OPTARG"
+			;;
+		h)
+			HOSTNAME="$OPTARG"
 			;;
 		s)
 			SUITE="$OPTARG"
 			;;
 		t)
 			TYPE="$OPTARG"
+			;;
+		u)
+			UBOOT_TYPE="$OPTARG"
 			;;
 		:)
 			echo 'Option -$OPTARG requires an argument.'
@@ -49,7 +54,7 @@ shift $((OPTIND - 1))
 
 DEVICE="$1"
 if [ ! -b "$DEVICE" ]; then
-	echo "Usage: $0 [-b BOOTPARTITION_SIZE] [-s SUITE] [-t sd|mmc] DEVICE [OTHER_DEBOOTSTRAP_ARGS...]"
+	echo "Usage: $0 [-b BOOTPARTITION_SIZE] [-h HOSTNAME] [-s SUITE] [-t sd|mmc] [-u hardkernel|mainline] DEVICE [OTHER_DEBOOTSTRAP_ARGS...]"
 	echo 'DEVICE is an SD card device, e.g. /dev/sdb.'
 	exit 1
 fi
@@ -60,6 +65,12 @@ if [ "$TYPE" != 'sd' ] && [ "$TYPE" != 'mmc' ]; then
 	exit 1
 fi
 
+[ "$UBOOT_TYPE" == 'hardkernel' ] \
+	&& INSTALL_HARDKERNEL_KERNEL=true \
+	|| INSTALL_HARDKERNEL_KERNEL=false
+
+VGNAME="${HOSTNAME}-vg"
+
 set -x
 
 
@@ -68,7 +79,7 @@ set -x
 ### GET DEPENDENCIES ###
 ########################
 
-if [ ! -d './c2_boot_ubuntu_release' ]; then
+if [ "$UBOOT_TYPE" == 'hardkernel' ] &&  [ ! -d './c2_boot_ubuntu_release' ]; then
 	# we dont have hardkernel sd_fusing scripts, download them
 	[ ! -f './c2_boot_ubuntu_release.tar.gz' ] && wget 'http://dn.odroid.com/S905/BootLoader/ODROID-C2/c2_boot_ubuntu_release.tar.gz'
 	tar -zxvf './c2_boot_ubuntu_release.tar.gz'
@@ -118,8 +129,19 @@ if [ "$TYPE" = 'sd' ]; then
 	UBOOT_DEVICE="$DEVICE"
 	UBOOT_OFFSET=1
 
-	# Do sd_fusing
-	sh -c "cd ./c2_boot_ubuntu_release; sh ./sd_fusing.sh \"${UBOOT_DEVICE}\""
+	if [ "$UBOOT_TYPE" == 'hardkernel' ]
+	then
+		# Do sd_fusing
+		sh -c "cd ./c2_boot_ubuntu_release; sh ./sd_fusing.sh \"${UBOOT_DEVICE}\""
+	else
+		if [ ! -f './mainline_sd_fusing.bin' ]
+		then
+			echo 'mainline_sd_fusing.bin is missing. Create it using ./create_u-boot_image.sh' >&2
+			exit 1
+		fi
+		
+		dd if='./mainline_sd_fusing.bin' of="$UBOOT_DEVICE" bs=512
+	fi
 else
 	UBOOT_DEVICE="${DEVICE}boot0"
 	UBOOT_OFFSET=0
@@ -180,7 +202,8 @@ mkdir '/mnt/c2/boot/ini'
 mount "$BOOTINI_PART" '/mnt/c2/boot/ini'
 
 
-debootstrap --include=locales,lvm2,isc-dhcp-client --foreign --arch arm64 "$SUITE" '/mnt/c2' "$@"
+debootstrap --include=locales,lvm2,isc-dhcp-client,debian-archive-keyring --foreign --arch arm64 \
+	"$SUITE" '/mnt/c2' "$@"
 
 
 
@@ -189,11 +212,20 @@ debootstrap --include=locales,lvm2,isc-dhcp-client --foreign --arch arm64 "$SUIT
 ###########################
 
 # Run the second stage debootstrap under qemu (via binfmt_misc).
-cp '/usr/bin/qemu-aarch64-static' '/mnt/c2/usr/bin/'
+AARCH64_EMULATOR="$(which qemu-aarch64-static)"
+if [ "$(uname -m)" != 'aarch64' ] && [ ! -x "$AARCH64_EMULATOR" ]
+then
+	echo 'Your system is missing qemu-aarch64-static, which is required for 2nd stage bootstrap' >&2
+	exit 1
+fi
 
-DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true LC_ALL=C LANGUAGE=C LANG=C \
+cp "$AARCH64_EMULATOR" '/mnt/c2/usr/bin/'
+
+DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true LC_ALL=C \
+	LANGUAGE=C LANG=C \
 	chroot '/mnt/c2' '/debootstrap/debootstrap' --second-stage
-DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true LC_ALL=C LANGUAGE=C LANG=C \
+DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true LC_ALL=C \
+    LANGUAGE=C LANG=C \
 	chroot '/mnt/c2' dpkg --configure -a
 
 
@@ -202,11 +234,16 @@ DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true LC_ALL=C LANGUAG
 ### GET HARDKERNEL KERNEL ###
 #############################
 
-# Add odroid.in repo
-echo 'deb http://deb.odroid.in/c2/ xenial main' > '/mnt/c2/etc/apt/sources.list.d/odroid_in.list'
+if $INSTALL_HARDKERNEL_KERNEL
+then
+	echo 'Installing Hardkernel linux kernel'
 
-# only get kernel package from odroid.in
-cat <<EOF > '/mnt/c2/etc/apt/preferences.d/odroid_in'
+	# Add odroid.in repo
+	echo 'deb http://deb.odroid.in/c2/ xenial main' \
+		 > '/mnt/c2/etc/apt/sources.list.d/odroid_in.list'
+
+	# only get kernel package from odroid.in
+	cat <<EOF > '/mnt/c2/etc/apt/preferences.d/odroid_in'
 Package: *
 Pin: origin deb.odroid.in
 Pin-Priority: -1
@@ -216,21 +253,31 @@ Pin: origin deb.odroid.in
 Pin-Priority: 501
 EOF
 
-# get repo pgp key
-DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true LC_ALL=C LANGUAGE=C LANG=C \
-	chroot '/mnt/c2' '/usr/bin/apt-key' adv --keyserver 'keyserver.ubuntu.com' --recv-keys '5360FB9DAB19BAC9'
+	# get repo pgp key
+	DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true LC_ALL=C \
+		LANGUAGE=C LANG=C \
+		chroot '/mnt/c2' '/usr/bin/apt-key' adv \
+			--keyserver 'keyserver.ubuntu.com' --recv-keys '5360FB9DAB19BAC9'
 
-DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true LC_ALL=C LANGUAGE=C LANG=C \
-	chroot '/mnt/c2' '/usr/bin/apt' update
-DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true LC_ALL=C LANGUAGE=C LANG=C \
-	chroot '/mnt/c2' '/usr/bin/apt' -y install u-boot-tools
-DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true LC_ALL=C LANGUAGE=C LANG=C \
-	chroot '/mnt/c2' '/usr/bin/apt' -y install linux-image-c2 ||
+	DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true LC_ALL=C \
+		LANGUAGE=C LANG=C \
+		chroot '/mnt/c2' '/usr/bin/apt-get' update
 
-# it looks like sometimes linux-image-c2 installation can fail, so let's run it 
-# again. That appears to fix it sometimes.
-DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true LC_ALL=C LANGUAGE=C LANG=C \
-	chroot '/mnt/c2' '/usr/bin/apt-get' -f install
+	DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true LC_ALL=C \
+		LANGUAGE=C LANG=C \
+		chroot '/mnt/c2' '/usr/bin/apt-get' -y install linux-image-c2 ||
+
+	# it looks like sometimes linux-image-c2 installation can fail, so
+	# let's run it again. That appears to fix it sometimes.
+	DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true LC_ALL=C \
+		LANGUAGE=C LANG=C \
+		chroot '/mnt/c2' '/usr/bin/apt-get' -f install
+fi
+
+DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true LC_ALL=C \
+	LANGUAGE=C LANG=C \
+	chroot '/mnt/c2' '/usr/bin/apt-get' -y install u-boot-tools
+
 
 
 
@@ -253,9 +300,9 @@ if [ "$SUITE" != 'unstable' ] && [ "$SUITE" != 'sid' ]; then
 fi
 
 DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true LC_ALL=C LANGUAGE=C LANG=C \
-	chroot '/mnt/c2' apt update || true
+	chroot '/mnt/c2' apt-get update || true
 DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true LC_ALL=C LANGUAGE=C LANG=C \
-	chroot '/mnt/c2' apt -y dist-upgrade || true
+	chroot '/mnt/c2' apt-get -y dist-upgrade || true
 
 DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true LC_ALL=C LANGUAGE=C LANG=C \
 	chroot '/mnt/c2' dpkg-reconfigure locales
@@ -318,7 +365,7 @@ dd if='/dev/zero' of='/mnt/c2/boot/zerofill' bs=1M || true
 rm -f '/mnt/c2/boot/zerofill'
 
 # All done, clean up.
-rm '/mnt/c2/usr/bin/qemu-aarch64-static'
+rm -f '/mnt/c2/usr/bin/qemu-aarch64-static'
 sleep 2
 umount -R '/mnt/c2'
 
