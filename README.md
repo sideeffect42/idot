@@ -1,2 +1,2 @@
-# idot
-Installing Debian On Things
+# itot
+Installing Things On Things
