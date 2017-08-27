@@ -8,11 +8,11 @@ IDOBPI: Installing Debian on Banana Pi M1 via debian-installer
 
 2.  **Make a bootable SD image**  
     more information: [README.concatenateable_images](http://ftp.debian.org/debian/dists/jessie/main/installer-armhf/current/images/netboot/SD-card-images/README.concatenateable_images)
-    
+
     ``` sh
     zcat firmware.BananaPi.img.gz partition.img.gz > bananapi_boot.img
     ```
-	
+
 3.  **Copy image `bananapi_boot.img` to SD card**  
     `<sdcard>` is `sdX` on Linux, `diskX` on Mac OS X
     ``` sh
