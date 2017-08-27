@@ -1,10 +1,11 @@
 IDOBPI: Installing Debian on Banana Pi M1 via debian-installer
 ==============================================================
 
+Note: This guide has been tested with Debian Jessie and Stretch.
 
 1.  **Download debian-installer images**
-    - [firmware.BananaPi.img.gz](http://ftp.debian.org/debian/dists/jessie/main/installer-armhf/current/images/netboot/SD-card-images/firmware.BananaPi.img.gz)
-    - [partition.img.gz](http://ftp.debian.org/debian/dists/jessie/main/installer-armhf/current/images/netboot/SD-card-images/partition.img.gz)
+    - [firmware.BananaPi.img.gz](http://ftp.debian.org/debian/dists/stable/main/installer-armhf/current/images/netboot/SD-card-images/firmware.BananaPi.img.gz)
+    - [partition.img.gz](http://ftp.debian.org/debian/dists/stable/main/installer-armhf/current/images/netboot/SD-card-images/partition.img.gz)
 
 2.  **Make a bootable SD image**  
     more information: [README.concatenateable_images](http://ftp.debian.org/debian/dists/jessie/main/installer-armhf/current/images/netboot/SD-card-images/README.concatenateable_images)
