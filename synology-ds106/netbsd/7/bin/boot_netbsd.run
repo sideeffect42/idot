@@ -1,0 +1,61 @@
+# Usage:
+#  Run this script through minicom (minicom -S boot_netbsd.run)
+#
+#  This script uses environment variables.
+#
+# Environment variables:
+#  - DHCP         Boot using DHCP? (0 to disable, non-zero to enable)
+#  - NET_IP       IP address of the NAS (only if DHCP=0)
+#  - NET_MASK     Netmask (only if DHCP=0)
+#  - TFTP_SERVER  IP address of the TFTP server (only if DHCP=0)
+#  - TFTP_PREFIX  Location of the boot files on the TFTP server (optional, must include trailing slash)
+
+
+verbose on
+
+sleep 1
+
+
+
+print "Turn on the device now."
+
+interrupt:
+send " "
+send "^C"
+expect {
+  "_MPC824X >" goto go
+  timeout 1 goto interrupt
+}
+goto interrupt
+
+go:
+sleep 1
+send "\r\n"
+sleep 1
+
+if "$(DHCP)" != 0 goto conf_dhcp
+
+conf_static:
+send "setenv ipaddr $(NET_IP)"
+send "setenv netmask $(NET_MASK)"
+send "setenv serverip $(TFTP_SERVER)"
+goto load_altboot
+
+conf_dhcp:
+send "dhcp"
+
+load_altboot:
+sleep 1
+send "tftpboot 1000000 $(TFTP_PREFIX)altboot.bin"
+
+wait_tftp:
+expect {
+  "_MPC824X >" goto boot
+  "ERROR" exit 1
+  timeout 1 goto wait_tftp
+}
+goto wait_tftp
+
+boot:
+send "go 1000000"
+print "Done. The device should now be booting NetBSD."
